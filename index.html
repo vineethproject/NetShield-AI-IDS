@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>NetShield AI-IDS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060B18;--panel:#0B1220;--border:#162035;--border2:#1E2F4A;
+  --cyan:#00C8F0;--cyan2:#0088AA;--cyan3:rgba(0,200,240,0.12);
+  --red:#FF2D55;--red3:rgba(255,45,85,0.12);
+  --amber:#FFB020;--amb3:rgba(255,176,32,0.10);
+  --green:#00E87A;--grn3:rgba(0,232,122,0.10);
+  --orange:#FF6B35;--purple:#A855F7;
+  --t1:#EAF2FF;--t2:#7B94B8;--t3:#3D5275;--t4:#1E2F48;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Inter',system-ui,sans-serif;
+}
+html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--sans);overflow-x:hidden}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--panel)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+button{cursor:pointer;font-family:var(--sans)}
+button:hover:not(:disabled){opacity:.82}
+a{color:var(--cyan);text-decoration:none}
+
+/* ── LAYOUT ── */
+#app{display:flex;flex-direction:column;min-height:100vh}
+.topbar{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 24px;border-bottom:1px solid var(--border);
+  background:rgba(6,11,24,.95);backdrop-filter:blur(12px);
+  position:sticky;top:0;z-index:100}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:38px;height:38px;border-radius:9px;background:var(--cyan3);
+  border:1px solid rgba(0,200,240,.35);display:flex;align-items:center;
+  justify-content:center;font-size:20px}
+.logo-text{font-size:16px;font-weight:800;letter-spacing:.1px}
+.logo-text span{color:var(--cyan)}
+.logo-sub{font-size:10px;color:var(--t3);font-family:var(--mono);margin-top:1px}
+.nav{display:flex;gap:6px;align-items:center}
+.nav-btn{padding:6px 14px;border-radius:6px;font-size:11px;font-weight:600;
+  border:1px solid var(--border);background:transparent;color:var(--t3);transition:all .2s}
+.nav-btn.active{background:var(--cyan3);border-color:var(--cyan);color:var(--cyan)}
+.status-badge{display:flex;align-items:center;gap:6px;padding:5px 12px;
+  border-radius:20px;border:1px solid rgba(0,232,122,.3);
+  background:rgba(0,232,122,.08);font-size:11px;font-weight:700;
+  font-family:var(--mono);color:var(--green)}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);
+  animation:beat 1.2s ease-in-out infinite}
+.status-badge.paused{border-color:rgba(61,82,117,.4);background:transparent;color:var(--t3)}
+.status-badge.paused .status-dot{background:var(--t3);animation:none}
+.ctrl-btn{padding:6px 14px;border-radius:6px;border:1px solid var(--border);
+  background:transparent;color:var(--t2);font-size:11px;font-weight:600;font-family:var(--mono)}
+
+.main{flex:1;padding:18px 24px;display:flex;flex-direction:column;gap:14px}
+
+/* ── STAT CARDS ── */
+.stats-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.stat-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;
+  padding:14px 16px;border-top:2px solid var(--cyan)}
+.stat-val{font-size:26px;font-weight:800;font-family:var(--mono);line-height:1}
+.stat-label{font-size:11px;font-weight:600;margin-top:5px;color:var(--t1)}
+.stat-sub{font-size:10px;color:var(--t3);margin-top:2px}
+
+/* ── PANELS ── */
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.panel-hdr{display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border)}
+.panel-title{font-size:12px;font-weight:700;letter-spacing:.2px}
+.panel-body{padding:16px}
+
+/* ── DASHBOARD GRID ── */
+.dash-grid{display:grid;grid-template-columns:220px 1fr;gap:14px}
+.left-col{display:flex;flex-direction:column;gap:14px}
+.right-col{display:flex;flex-direction:column;gap:14px}
+
+/* ── THREAT PULSE ── */
+.pulse-wrap{position:relative;width:180px;height:180px;margin:0 auto}
+.pulse-ring{position:absolute;inset:0;border-radius:50%;border:1px solid var(--cyan);
+  animation:ring 2s ease-out infinite;opacity:0}
+.pulse-core{position:absolute;inset:28%;border-radius:50%;
+  background:radial-gradient(circle,rgba(0,200,240,.18) 0%,rgba(0,200,240,.05) 60%,transparent 100%);
+  border:2px solid rgba(0,200,240,.7);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  animation:beat 2s ease-in-out infinite;
+  box-shadow:0 0 24px rgba(0,200,240,.35),inset 0 0 20px rgba(0,200,240,.12)}
+.pulse-val{font-size:24px;font-weight:800;font-family:var(--mono);line-height:1;color:var(--cyan)}
+.pulse-lbl{font-size:8px;color:var(--t3);font-family:var(--mono);letter-spacing:1px}
+.pulse-orbit{position:absolute;inset:15%;border-radius:50%;
+  border:1px dashed rgba(0,200,240,.2);animation:spin 16s linear infinite}
+.pulse-dot{position:absolute;top:-3px;left:50%;transform:translateX(-50%);
+  width:6px;height:6px;border-radius:50%;background:var(--cyan);
+  box-shadow:0 0 8px var(--cyan)}
+.threat-label{text-align:center;font-size:11px;font-weight:800;
+  font-family:var(--mono);letter-spacing:1px;margin-top:12px;color:var(--green)}
+
+/* ── SEV BAR ── */
+.sev-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.sev-name{width:62px;font-size:10px;font-weight:700;font-family:var(--mono)}
+.sev-track{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.sev-fill{height:100%;border-radius:3px;transition:width .6s ease}
+.sev-cnt{width:26px;font-size:10px;font-family:var(--mono);text-align:right;color:var(--t2)}
+
+/* ── PILL / BADGE ── */
+.pill{display:inline-flex;align-items:center;padding:2px 7px;border-radius:3px;
+  font-size:9px;font-weight:700;font-family:var(--mono);letter-spacing:.5px}
+.badge{padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;
+  font-family:var(--mono)}
+
+/* ── EVENT TABLE ── */
+.tbl-hdr,.tbl-row{display:grid;
+  grid-template-columns:64px 72px 1fr 110px 50px 76px;
+  gap:8px;padding:7px 14px;align-items:center}
+.tbl-hdr{font-size:9px;font-weight:700;font-family:var(--mono);
+  letter-spacing:.8px;color:var(--t4);border-bottom:1px solid var(--border)}
+.tbl-row{border-bottom:1px solid var(--border);cursor:pointer;
+  border-left:3px solid transparent;transition:background .7s ease}
+.tbl-row:hover{background:rgba(255,255,255,.025)}
+.tbl-row.selected{border-left-color:var(--cyan);background:rgba(0,200,240,.06)}
+.tbl-row.flash{background:rgba(0,200,240,.09)}
+.tbl-scroll{overflow-y:auto;max-height:320px}
+.tbl-src{font-size:10px;font-family:var(--mono);color:var(--cyan2)}
+.tbl-type{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbl-time{font-size:10px;font-family:var(--mono);color:var(--t3)}
+.tbl-port{font-size:10px;font-family:var(--mono);color:var(--t3)}
+.tbl-status{font-size:10px;font-weight:700;font-family:var(--mono);text-align:right}
+
+/* ── FILTER PILLS ── */
+.filter-row{display:flex;gap:5px}
+.flt-btn{padding:2px 9px;font-size:9px;font-weight:700;font-family:var(--mono);
+  letter-spacing:.5px;border-radius:3px;border:1px solid var(--border);
+  background:transparent;color:var(--t3)}
+.flt-btn.active-f{color:var(--cyan);background:var(--cyan3);border-color:var(--cyan)}
+.flt-btn.active-CRITICAL{color:#FF2D55;background:rgba(255,45,85,.1);border-color:rgba(255,45,85,.4)}
+.flt-btn.active-HIGH{color:#FF6B35;background:rgba(255,107,53,.1);border-color:rgba(255,107,53,.4)}
+.flt-btn.active-MEDIUM{color:#FFB020;background:rgba(255,176,32,.09);border-color:rgba(255,176,32,.35)}
+.flt-btn.active-LOW{color:#00E87A;background:rgba(0,232,122,.08);border-color:rgba(0,232,122,.3)}
+
+/* ── DETAIL DRAWER ── */
+.detail{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 32px;padding:14px 18px}
+.detail-row{display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);align-items:flex-start}
+.detail-key{width:145px;flex-shrink:0;font-size:11px;color:var(--t3)}
+.detail-val{font-size:11px;color:var(--t1);word-break:break-all}
+
+/* ── AI PANEL ── */
+.ai-body{padding:16px;min-height:140px;font-family:var(--mono);font-size:11.5px;
+  line-height:1.85;color:var(--t2);white-space:pre-wrap}
+.ai-empty{color:var(--t4)}
+.ai-run{padding:5px 16px;border-radius:4px;font-size:11px;font-weight:700;
+  font-family:var(--mono);letter-spacing:.5px;border:1px solid var(--purple);
+  background:rgba(168,85,247,.1);color:var(--purple)}
+.ai-run:disabled{border-color:var(--t4);background:transparent;color:var(--t4);cursor:not-allowed}
+.ai-dot{width:8px;height:8px;border-radius:50%;background:var(--purple);
+  box-shadow:0 0 8px var(--purple)}
+
+/* ── INTEL PAGE ── */
+.intel-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.bar-label{display:flex;justify-content:space-between;margin-bottom:5px}
+.bar-track{height:7px;background:var(--border);border-radius:4px;margin-bottom:14px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;background:var(--cyan);transition:width .6s}
+.tbl2-row{display:flex;justify-content:space-between;align-items:center;
+  padding:8px 0;border-bottom:1px solid var(--border)}
+
+/* ── NETWORK SVG MAP ── */
+.netmap{display:block;margin:0 auto}
+
+/* ── ABOUT ── */
+.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.kv-row{padding:9px 0;border-bottom:1px solid var(--border)}
+.kv-key{font-size:10px;color:var(--t4);font-family:var(--mono);margin-bottom:3px}
+.kv-val{font-size:11px;color:var(--t1)}
+.code-block{font-family:var(--mono);font-size:11px;line-height:1.9;
+  color:var(--t2);white-space:pre-wrap;padding:16px}
+
+/* ── FOOTER ── */
+.footer{border-top:1px solid var(--border);padding:10px 24px;
+  display:flex;justify-content:space-between;
+  font-size:10px;color:var(--t4);font-family:var(--mono)}
+
+/* ── SEARCH ── */
+.search-input{padding:6px 11px;background:var(--bg);border:1px solid var(--border);
+  color:var(--t1);border-radius:5px;font-size:11px;font-family:var(--mono);
+  outline:none;width:220px}
+.search-input:focus{border-color:var(--border2)}
+
+/* ── ANIMATIONS ── */
+@keyframes ring{0%{transform:scale(.35);opacity:.9}100%{transform:scale(1);opacity:0}}
+@keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.fadein{animation:fadein .35s ease}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ─── CONFIG ─────────────────────────────────────────────────
+const API = "http://localhost:5000/api";  // change to your server URL if deployed
+const USE_BACKEND = false;                // set true when Flask is running
+
+// ─── CONSTANTS ──────────────────────────────────────────────
+const ATTACK_TYPES = [
+  "Port Scan","Brute Force","DoS/DDoS","SQL Injection",
+  "Malware C2","Data Exfiltration","Privilege Escalation","Anomalous Traffic",
+  "XSS Payload","Command Injection","DNS Tunneling","Zero-Day Exploit",
+];
+const MITRE = {
+  "Port Scan":            {t:"Reconnaissance",     k:"T1046 - Network Service Scan"},
+  "Brute Force":          {t:"Credential Access",  k:"T1110 - Brute Force"},
+  "DoS/DDoS":             {t:"Impact",             k:"T1499 - Endpoint DoS"},
+  "SQL Injection":        {t:"Initial Access",     k:"T1190 - Exploit Public App"},
+  "Malware C2":           {t:"Command & Control",  k:"T1071 - App Layer Protocol"},
+  "Data Exfiltration":    {t:"Exfiltration",       k:"T1041 - Exfil Over C2"},
+  "Privilege Escalation": {t:"Priv Escalation",    k:"T1068 - Exploitation"},
+  "Anomalous Traffic":    {t:"Discovery",          k:"T1040 - Network Sniffing"},
+  "XSS Payload":          {t:"Initial Access",     k:"T1189 - Drive-by Compromise"},
+  "Command Injection":    {t:"Execution",          k:"T1059 - Command Interpreter"},
+  "DNS Tunneling":        {t:"Exfiltration",       k:"T1048 - Alt Protocol"},
+  "Zero-Day Exploit":     {t:"Initial Access",     k:"T1203 - Client Exploit"},
+};
+const PROTOCOLS = ["TCP","UDP","ICMP","HTTP","HTTPS","SSH","FTP","DNS"];
+const SUBNETS   = ["192.168.1.","10.0.0.","172.16.0.","203.45.67.","89.234.12.","45.33.32."];
+const RULES     = ["R001: SYN Flood","R002: NULL Scan","R003: Xmas Tree",
+                   "R004: Data Dump","R005: Brute Force","R006: C2 Beacon","No rule match"];
+const SEVW      = [["CRITICAL",.09],["HIGH",.18],["MEDIUM",.37],["LOW",.36]];
+const RESPONSE  = {CRITICAL:"QUARANTINE",HIGH:"BLOCK_IP",MEDIUM:"ALERT",LOW:"ALLOW"};
+const SEVCOL    = {
+  CRITICAL:{fg:"#FF2D55",bg:"rgba(255,45,85,.11)"},
+  HIGH:    {fg:"#FF6B35",bg:"rgba(255,107,53,.11)"},
+  MEDIUM:  {fg:"#FFB020",bg:"rgba(255,176,32,.09)"},
+  LOW:     {fg:"#00E87A",bg:"rgba(0,232,122,.08)"},
+};
+
+// ─── HELPERS ────────────────────────────────────────────────
+const ri=(a,b)=>Math.floor(Math.random()*(b-a+1)+a);
+const rf=(a,b)=>+(Math.random()*(b-a)+a).toFixed(3);
+const rip=()=>SUBNETS[ri(0,SUBNETS.length-1)]+ri(1,254);
+const pick=arr=>arr[ri(0,arr.length-1)];
+const genID=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function weightedSev(){
+  let x=Math.random(),acc=0;
+  for(const[s,w]of SEVW){acc+=w;if(x<acc)return s;}
+  return "LOW";
+}
+function fmtBytes(b){
+  if(b>1e6)return (b/1e6).toFixed(1)+"MB";
+  if(b>1e3)return (b/1e3).toFixed(1)+"KB";
+  return b+"B";
+}
+function fmtTime(d){return new Date(d).toLocaleTimeString("en-US",{hour12:false});}
+
+let _evId=0;
+function genEvent(){
+  const sev=weightedSev();
+  const atk=pick(ATTACK_TYPES);
+  const m=MITRE[atk]||{t:"Unknown",k:"Unknown"};
+  const port=pick([22,80,443,3306,5432,8080,8443,27017,6379,53,21,23]);
+  return{
+    id:genID(), seq:++_evId,
+    timestamp:new Date().toISOString(),
+    src_ip:rip(), dst_ip:rip(), dst_port:port,
+    protocol:pick(PROTOCOLS), attack_type:atk, severity:sev,
+    confidence:rf(.62,.99), blocked:Math.random()>(sev==="LOW"?.6:.25),
+    bytes_transferred:ri(400,9_500_000),
+    rule_triggered:pick(RULES), mitre_tactic:m.t, mitre_technique:m.k,
+    response_action:RESPONSE[sev], anomaly_score:rf(.1,.95),
+  };
+}
+
+// ─── STATE ──────────────────────────────────────────────────
+const state={
+  events:[], running:true, page:"dashboard",
+  filter:"ALL", search:"", selected:null,
+  analysis:"", analyzing:false,
+  lastId:null,
+};
+
+// Seed initial events
+for(let i=0;i<20;i++) state.events.push(genEvent());
+
+// ─── SIMULATION LOOP ────────────────────────────────────────
+let _timer=null;
+function scheduleNext(){
+  if(_timer)clearTimeout(_timer);
+  if(!state.running)return;
+  _timer=setTimeout(()=>{
+    if(USE_BACKEND){
+      fetch(`${API}/events?n=5`).then(r=>r.json()).then(d=>{
+        d.events.forEach(e=>{
+          if(!state.events.find(x=>x.id===e.event_id||x.id===e.id)){
+            state.events.unshift({...e,id:e.event_id||e.id});
+          }
+        });
+        if(state.events.length>300) state.events=state.events.slice(0,300);
+        render();
+      }).catch(()=>{ addLocalEvent(); render(); });
+    } else {
+      addLocalEvent(); render();
+    }
+    scheduleNext();
+  }, ri(600,2400));
+}
+
+function addLocalEvent(){
+  const ev=genEvent();
+  state.events.unshift(ev);
+  state.lastId=ev.id;
+  if(state.events.length>300) state.events.pop();
+}
+
+scheduleNext();
+
+// ─── AI ANALYSIS ────────────────────────────────────────────
+async function runAnalysis(){
+  if(state.analyzing||state.events.length===0)return;
+  state.analyzing=true; state.analysis=""; render();
+  const evs=state.events.slice(0,100);
+  const counts=evs.reduce((a,e)=>({...a,[e.severity]:(a[e.severity]||0)+1}),{});
+  const types=evs.map(e=>e.attack_type);
+  const top=[...new Set(types)].sort((a,b)=>types.filter(t=>t===b).length-types.filter(t=>t===a).length).slice(0,5);
+  const blocked=evs.filter(e=>e.blocked).length;
+  const tactics=[...new Set(evs.map(e=>e.mitre_tactic))].filter(Boolean).slice(0,4);
+  const tl=Math.min(100,Math.round(((counts.CRITICAL||0)*8+(counts.HIGH||0)*3+(counts.MEDIUM||0)*1)/Math.max(evs.length,1)*100));
+  try{
+    const res=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        model:"claude-sonnet-4-6",max_tokens:1000,
+        messages:[{role:"user",content:
+`You are a senior SOC analyst. Analyze this IDS telemetry and give a concise threat report.
+
+TELEMETRY:
+- Events: ${evs.length} | Threat Score: ${tl}/100
+- CRITICAL:${counts.CRITICAL||0} HIGH:${counts.HIGH||0} MEDIUM:${counts.MEDIUM||0} LOW:${counts.LOW||0}
+- Blocked: ${blocked}/${evs.length} (${Math.round(blocked/evs.length*100)}%)
+- Attacks: ${top.join(", ")}
+- MITRE Tactics: ${tactics.join(", ")||"None"}
+- Unique IPs: ${[...new Set(evs.map(e=>e.src_ip))].length}
+
+Reply in EXACTLY this format (plain text only):
+
+THREAT INTELLIGENCE REPORT
+──────────────────────────
+EXECUTIVE SUMMARY
+[2 sentences on risk posture]
+
+ACTIVE THREATS
+→ [threat 1 with technical detail]
+→ [threat 2 with technical detail]
+→ [threat 3 if relevant]
+
+MITRE ATT&CK
+→ [tactic and what it means]
+→ [tactic and what it means]
+
+IMMEDIATE ACTIONS
+► [specific action 1]
+► [specific action 2]
+► [specific action 3]
+
+ANOMALIES
+⚠ [anomaly 1]
+⚠ [anomaly 2]
+
+RISK RATING: [CRITICAL/HIGH/MEDIUM/LOW] — [one sentence]
+
+Under 240 words. Be direct and technical.`
+        }]
+      })
+    });
+    const data=await res.json();
+    const text=data.content?.map(b=>b.text||"").join("")||"Analysis unavailable.";
+    let i=0;
+    const iv=setInterval(()=>{
+      i+=4; state.analysis=text.slice(0,i); render();
+      if(i>=text.length){clearInterval(iv);state.analyzing=false;render();}
+    },12);
+  }catch(e){
+    state.analysis="⚠ AI engine unreachable.\n\nManual: Triage CRITICAL events first. Block top attacker IPs. Check C2 beacon patterns.";
+    state.analyzing=false; render();
+  }
+}
+
+// ─── RENDER HELPERS ─────────────────────────────────────────
+function pill(sev){
+  const c=SEVCOL[sev]||SEVCOL.LOW;
+  return `<span class="pill" style="color:${c.fg};background:${c.bg};border:1px solid ${c.fg}33">${sev}</span>`;
+}
+function badge(label,color){
+  return `<span class="badge" style="color:${color||"var(--cyan)"};background:${color||"var(--cyan)"}18;border:1px solid ${color||"var(--cyan)"}33">${label}</span>`;
+}
+
+function computeStats(){
+  const evs=state.events;
+  const counts=evs.reduce((a,e)=>({...a,[e.severity]:(a[e.severity]||0)+1}),{});
+  const blocked=evs.filter(e=>e.blocked).length;
+  const critical=counts.CRITICAL||0;
+  const tl=Math.min(100,Math.round(((critical*8+(counts.HIGH||0)*3+(counts.MEDIUM||0))/Math.max(evs.length,1))*100));
+  const uniqueSrc=[...new Set(evs.map(e=>e.src_ip))].length;
+  return{counts,blocked,critical,tl,uniqueSrc};
+}
+
+function sevColor(s){return(SEVCOL[s]||SEVCOL.LOW).fg;}
+
+// ─── COMPONENTS ─────────────────────────────────────────────
+function renderStatCards(stats){
+  const {counts,blocked,critical,tl,uniqueSrc}=stats;
+  const total=state.events.length;
+  const blockPct=total?Math.round(blocked/total*100):0;
+  const tlColor=tl>70?"#FF2D55":tl>40?"#FFB020":"#00E87A";
+  const cards=[
+    {label:"TOTAL EVENTS",  val:total,     sub:`session`,          color:"var(--cyan)"},
+    {label:"BLOCKED",       val:blocked,   sub:`${blockPct}% rate`,color:"var(--green)"},
+    {label:"CRITICAL",      val:critical,  sub:`immediate`,        color:"#FF2D55"},
+    {label:"HIGH",          val:counts.HIGH||0, sub:`elevated`,    color:"#FF6B35"},
+    {label:"UNIQUE SOURCES",val:uniqueSrc, sub:`attacker IPs`,     color:"var(--purple)"},
+    {label:"THREAT SCORE",  val:tl,        sub:tl>70?"CRITICAL":tl>40?"ELEVATED":"NOMINAL", color:tlColor},
+  ];
+  return`<div class="stats-row">${cards.map(c=>`
+    <div class="stat-card" style="border-top-color:${c.color}">
+      <div class="stat-val" style="color:${c.color}">${c.val}</div>
+      <div class="stat-label">${c.label}</div>
+      <div class="stat-sub">${c.sub}</div>
+    </div>`).join("")}</div>`;
+}
+
+function renderPulse(tl){
+  const color=tl>70?"#FF2D55":tl>40?"#FFB020":"var(--cyan)";
+  const spd=tl>70?.7:tl>40?1.2:2;
+  const lbl=tl>70?"CRITICAL RISK":tl>40?"ELEVATED":"NOMINAL";
+  const rings=[0,1,2,3].map(i=>`<div class="pulse-ring" style="border-color:${color};animation-duration:${spd}s;animation-delay:${i*(spd/4)}s"></div>`).join("");
+  return`
+  <div style="padding:20px 12px 14px">
+    <div class="pulse-wrap">
+      ${rings}
+      <div class="pulse-orbit" style="animation-duration:${spd*8}s;border-color:${color}33">
+        <div class="pulse-dot" style="background:${color};box-shadow:0 0 8px ${color}"></div>
+      </div>
+      <div class="pulse-core" style="border-color:${color}88;box-shadow:0 0 24px ${color}44,inset 0 0 20px ${color}18;animation-duration:${spd}s">
+        <div class="pulse-val" style="color:${color}">${tl}</div>
+        <div class="pulse-lbl">THREAT</div>
+      </div>
+    </div>
+    <div class="threat-label" style="color:${color}">${lbl}</div>
+  </div>`;
+}
+
+function renderSevBars(counts,total){
+  return["CRITICAL","HIGH","MEDIUM","LOW"].map(s=>{
+    const n=counts[s]||0,pct=total?(n/total*100):0;
+    return`<div class="sev-row">
+      <span class="sev-name" style="color:${sevColor(s)}">${s}</span>
+      <div class="sev-track"><div class="sev-fill" style="width:${pct}%;background:${sevColor(s)}"></div></div>
+      <span class="sev-cnt">${n}</span>
+    </div>`;
+  }).join("");
+}
+
+function renderNetMap(events){
+  const recent=events.slice(0,20);
+  const srcMap={};
+  recent.forEach(e=>{
+    if(!srcMap[e.src_ip]) srcMap[e.src_ip]={ip:e.src_ip,count:0,sev:"LOW"};
+    srcMap[e.src_ip].count++;
+    const r=["LOW","MEDIUM","HIGH","CRITICAL"];
+    if(r.indexOf(e.severity)>r.indexOf(srcMap[e.src_ip].sev)) srcMap[e.src_ip].sev=e.severity;
+  });
+  const nodes=Object.values(srcMap).slice(0,8);
+  const W=310,H=155,cx=W/2,cy=H/2,r=58;
+  const lines=nodes.map((n,i)=>{
+    const a=(i/nodes.length)*Math.PI*2-Math.PI/2;
+    const nx=cx+Math.cos(a)*r,ny=cy+Math.sin(a)*r;
+    const col=sevColor(n.sev);
+    const sz=n.count>3?9:6;
+    const last=n.ip.split(".").slice(-1)[0];
+    return`
+      <line x1="${nx}" y1="${ny}" x2="${cx}" y2="${cy}" stroke="${col}" stroke-width=".8" stroke-dasharray="3,3" opacity=".4"/>
+      <circle cx="${nx}" cy="${ny}" r="${sz}" fill="${col}22" stroke="${col}" stroke-width="1"/>
+      <text x="${nx}" y="${ny+1}" text-anchor="middle" dominant-baseline="middle" font-size="5" fill="${col}" font-family="monospace">${last}</text>`;
+  }).join("");
+  return`<svg class="netmap" width="${W}" height="${H}">
+    <circle cx="${cx}" cy="${cy}" r="22" fill="var(--cyan3)" stroke="var(--cyan)" stroke-width="1.5"/>
+    <text x="${cx}" y="${cy+1}" text-anchor="middle" dominant-baseline="middle" font-size="7.5" fill="var(--cyan)" font-family="monospace">TARGET</text>
+    ${lines}
+  </svg>`;
+}
+
+function renderEventRow(ev,isNew){
+  const c=SEVCOL[ev.severity]||SEVCOL.LOW;
+  const sel=state.selected?.id===ev.id;
+  const flash=isNew&&ev.id===state.lastId;
+  const cls=`tbl-row${sel?" selected":""}${flash?" flash":""}`;
+  const blocked=ev.blocked
+    ?`<span style="color:var(--green)">● BLOCK</span>`
+    :`<span style="color:var(--red)">○ PASS</span>`;
+  return`<div class="${cls}" data-id="${ev.id}" style="${sel?`border-left-color:${c.fg}`:""}">
+    <div>${pill(ev.severity)}</div>
+    <span class="tbl-time">${fmtTime(ev.timestamp)}</span>
+    <span class="tbl-type">${ev.attack_type}</span>
+    <span class="tbl-src">${ev.src_ip}</span>
+    <span class="tbl-port">:${ev.dst_port}</span>
+    <span class="tbl-status">${blocked}</span>
+  </div>`;
+}
+
+function renderDetail(ev){
+  if(!ev)return"";
+  const c=SEVCOL[ev.severity]||SEVCOL.LOW;
+  const row=(k,v)=>`<div class="detail-row"><span class="detail-key">${k}</span><span class="detail-val">${v}</span></div>`;
+  return`<div class="detail fadein" style="margin-top:14px">
+    <div class="panel-hdr" style="background:${c.fg}08">
+      <span class="panel-title">Event Detail — ${ev.id}</span>
+      <button onclick="state.selected=null;render()" style="padding:3px 10px;border:1px solid var(--border);background:transparent;color:var(--t3);border-radius:4px;font-size:11px">Close ✕</button>
+    </div>
+    <div class="detail-grid">
+      <div>
+        ${row("Severity",pill(ev.severity))}
+        ${row("Attack Type",ev.attack_type)}
+        ${row("Source IP",`<span style="font-family:var(--mono)">${ev.src_ip}</span>`)}
+        ${row("Destination",`<span style="font-family:var(--mono)">${ev.dst_ip}:${ev.dst_port}</span>`)}
+        ${row("Protocol",ev.protocol)}
+        ${row("Bytes",fmtBytes(ev.bytes_transferred||0))}
+        ${row("Confidence",`${(ev.confidence*100).toFixed(1)}%`)}
+      </div><div>
+        ${row("Response",badge(ev.response_action,ev.blocked?"#FF2D55":"#00E87A"))}
+        ${row("Rule",`<span style="font-family:var(--mono);font-size:10px">${ev.rule_triggered}</span>`)}
+        ${row("MITRE Tactic",ev.mitre_tactic)}
+        ${row("MITRE Tech",`<span style="font-family:var(--mono);font-size:10px">${ev.mitre_technique}</span>`)}
+        ${row("Anomaly Score",`${((ev.anomaly_score||0)*100).toFixed(1)}%`)}
+        ${row("Timestamp",`<span style="font-size:10px;font-family:var(--mono)">${new Date(ev.timestamp).toLocaleString()}</span>`)}
+        ${row("Status",ev.blocked?"🔴 Blocked &amp; Logged":"🟡 Passed — Monitoring")}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderAI(){
+  return`<div class="panel">
+    <div class="panel-hdr">
+      <span class="panel-title" style="display:flex;align-items:center;gap:8px">
+        <span class="ai-dot" style="background:${state.analyzing?"var(--amber)":"var(--purple)"};box-shadow:0 0 8px ${state.analyzing?"var(--amber)":"var(--purple)"}"></span>
+        AI Threat Intelligence
+      </span>
+      <button class="ai-run" onclick="runAnalysis()" ${state.analyzing||state.events.length===0?"disabled":""}>
+        ${state.analyzing?"ANALYZING…":"RUN ANALYSIS"}
+      </button>
+    </div>
+    <div class="ai-body">${state.analysis||`<span class="ai-empty">${state.events.length===0?"No events yet.":""+state.events.length+" events ready. Click RUN ANALYSIS for Claude-powered threat intelligence."}</span>`}</div>
+  </div>`;
+}
+
+function renderFilters(){
+  return`<div class="filter-row">
+    ${["ALL","CRITICAL","HIGH","MEDIUM","LOW"].map(f=>`
+      <button class="flt-btn ${state.filter===f?(f==="ALL"?"active-f":"active-"+f):""}" onclick="state.filter='${f}';render()">${f}</button>
+    `).join("")}
+  </div>`;
+}
+
+function filteredEvents(){
+  return state.events.filter(e=>{
+    const ms=state.filter==="ALL"||e.severity===state.filter;
+    const mq=!state.search||e.src_ip.includes(state.search)||e.attack_type.toLowerCase().includes(state.search.toLowerCase());
+    return ms&&mq;
+  });
+}
+
+// ── PAGES ────────────────────────────────────────────────────
+function pageDashboard(stats){
+  const {counts,blocked,critical,tl}=stats;
+  const total=state.events.length;
+  const fevs=filteredEvents();
+  return`
+  <div class="dash-grid">
+    <div class="left-col">
+      <div class="panel">
+        <div class="panel-hdr"><span class="panel-title">Threat Pulse</span></div>
+        ${renderPulse(tl)}
+      </div>
+      <div class="panel">
+        <div class="panel-hdr"><span class="panel-title">Severity Distribution</span></div>
+        <div class="panel-body">${renderSevBars(counts,total)}</div>
+      </div>
+      <div class="panel">
+        <div class="panel-hdr"><span class="panel-title">Network Activity Map</span></div>
+        <div style="padding:12px 8px">${renderNetMap(state.events)}</div>
+      </div>
+    </div>
+    <div class="right-col">
+      ${renderAI()}
+      <div class="panel">
+        <div class="panel-hdr">
+          <span class="panel-title">Live Threat Feed <span style="font-size:10px;color:var(--t3);font-family:var(--mono)">[${fevs.length}]</span></span>
+          ${renderFilters()}
+        </div>
+        <div class="tbl-hdr"><span>SEVERITY</span><span>TIME</span><span>ATTACK TYPE</span><span>SOURCE IP</span><span>PORT</span><span style="text-align:right">STATUS</span></div>
+        <div class="tbl-scroll" id="feed">
+          ${fevs.slice(0,60).map(e=>renderEventRow(e,true)).join("")}
+        </div>
+      </div>
+      ${renderDetail(state.selected)}
+    </div>
+  </div>`;
+}
+
+function pageEvents(){
+  const fevs=filteredEvents();
+  return`
+  <div class="panel">
+    <div class="panel-hdr">
+      <span class="panel-title">All Events — <span style="color:var(--t3)">${fevs.length} matching</span></span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="search-input" placeholder="Search IP or attack…" value="${state.search}"
+          oninput="state.search=this.value;render()"/>
+        ${renderFilters()}
+      </div>
+    </div>
+    <div class="tbl-hdr"><span>SEV</span><span>TIME</span><span>ATTACK TYPE</span><span>SRC IP</span><span>PORT</span><span style="text-align:right">STATUS</span></div>
+    <div style="height:calc(100vh - 260px);overflow-y:auto">
+      ${fevs.map(e=>renderEventRow(e,false)).join("")}
+    </div>
+  </div>
+  ${renderDetail(state.selected)}`;
+}
+
+function pageIntel(){
+  const evs=state.events;
+  if(!evs.length) return`<div style="text-align:center;padding:60px;color:var(--t3)">No data yet</div>`;
+  const types=evs.map(e=>e.attack_type);
+  const topTypes=Object.entries(evs.reduce((a,e)=>({...a,[e.attack_type]:(a[e.attack_type]||0)+1}),{}))
+    .sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const topSrc=Object.entries(evs.reduce((a,e)=>({...a,[e.src_ip]:(a[e.src_ip]||0)+1}),{}))
+    .sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const mitreSet=[...new Map(evs.map(e=>[e.mitre_technique,{t:e.mitre_tactic,k:e.mitre_technique}])).values()].slice(0,7);
+  const responses=Object.entries(evs.reduce((a,e)=>({...a,[e.response_action]:(a[e.response_action]||0)+1}),{})).sort((a,b)=>b[1]-a[1]);
+  const rCol={QUARANTINE:"#FF2D55",BLOCK_IP:"#FF6B35",ALERT:"#FFB020",ALLOW:"#00E87A"};
+  return`
+  <div class="intel-grid">
+    <div class="panel">
+      <div class="panel-hdr"><span class="panel-title">Top Attack Vectors</span></div>
+      <div class="panel-body">
+        ${topTypes.map(([t,n])=>{
+          const pct=Math.round(n/evs.length*100);
+          return`<div class="bar-label"><span style="font-size:12px">${t}</span><span style="font-size:11px;font-family:var(--mono);color:var(--t2)">${n} (${pct}%)</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>`;
+        }).join("")}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr"><span class="panel-title">MITRE ATT&amp;CK Coverage</span></div>
+      <div class="panel-body">
+        ${mitreSet.map(m=>`
+          <div class="tbl2-row">
+            ${badge(m.t,"var(--purple)")}
+            <span style="font-size:10px;font-family:var(--mono);color:var(--t2);margin-left:10px">${m.k}</span>
+          </div>`).join("")}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr"><span class="panel-title">Top Attacker IPs</span></div>
+      <div class="panel-body">
+        ${topSrc.map(([ip,n])=>{
+          const sev=evs.find(e=>e.src_ip===ip)?.severity||"LOW";
+          return`<div class="tbl2-row">
+            <span style="font-family:var(--mono);font-size:11px;color:var(--cyan2)">${ip}</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="font-size:10px;color:var(--t3);font-family:var(--mono)">${n} events</span>
+              ${pill(sev)}
+            </div>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr"><span class="panel-title">Response Actions</span></div>
+      <div class="panel-body">
+        ${responses.map(([a,n])=>`
+          <div class="tbl2-row">
+            ${badge(a,rCol[a]||"var(--cyan)")}
+            <span style="font-size:14px;font-weight:800;font-family:var(--mono);color:var(--t1)">${n}</span>
+          </div>`).join("")}
+      </div>
+    </div>
+  </div>`;
+}
+
+function pageAbout(){
+  return`
+  <div class="about-grid">
+    <div class="panel">
+      <div class="panel-hdr"><span class="panel-title" style="color:var(--cyan)">System Architecture</span></div>
+      <div class="panel-body">
+        ${[
+          ["ML Engine","Random Forest (15 trees, 25-feature vectors) — KDD Cup 99 & CICIDS 2017 patterns"],
+          ["Anomaly Detection","Z-score statistical baseline on 200-packet rolling window"],
+          ["Signature Rules","8 deterministic rules: SYN Flood, NULL Scan, Xmas Tree, Data Dump, Brute Force, C2 Beacon, Port Probe, RST Injection"],
+          ["Feature Extraction","25-dimensional vector: protocol, TCP flags, byte ratios, port sensitivity, connection state"],
+          ["AI Analysis","Claude Sonnet 4.6 via Anthropic API — natural-language threat intelligence reports"],
+          ["Backend API","Flask REST API (Python 3.8+) — /api/events, /api/intel, /api/simulate, /api/status"],
+          ["Frontend","Vanilla HTML/CSS/JS — zero framework, no build step, open index.html in browser"],
+          ["MITRE Mapping","Every detection tagged with ATT&CK tactic + technique ID"],
+        ].map(([k,v])=>`<div class="kv-row"><div class="kv-key">${k}</div><div class="kv-val">${v}</div></div>`).join("")}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr"><span class="panel-title" style="color:var(--purple)">ML Model Details</span></div>
+      <div class="panel-body">
+        ${[
+          ["Algorithm","Random Forest Ensemble (15 Decision Trees)"],
+          ["Feature Dims","25 (protocol enc, TCP flags, byte ratios, conn state, port risk)"],
+          ["Attack Classes","8: Normal, Port Scan, Brute Force, DoS/DDoS, SQL Injection, Malware C2, Data Exfil, Priv Esc"],
+          ["Training Data","KDD Cup 99 + CICIDS 2017 (benchmark IDS datasets)"],
+          ["Anomaly Layer","Z-score — μ ± 3σ on rolling 200-packet window"],
+          ["Signal Fusion","ML probability × anomaly score weighted"],
+          ["Responses","ALLOW / ALERT / RATE_LIMIT / BLOCK_IP / QUARANTINE"],
+          ["Accuracy Est.","~91% on KDD Cup 99 benchmark (Random Forest baseline)"],
+        ].map(([k,v])=>`<div class="kv-row"><div class="kv-key">${k}</div><div class="kv-val">${v}</div></div>`).join("")}
+      </div>
+    </div>
+    <div class="panel" style="grid-column:1/-1">
+      <div class="panel-hdr"><span class="panel-title">How to Run — Full Stack Setup</span></div>
+      <pre class="code-block"># ── BACKEND SETUP ──────────────────────────────────────────
+# 1. Install Python dependencies
+pip install flask flask-cors numpy
+
+# 2. Run ML engine test
+python ids_engine.py
+# → Should print: ✓ IDS Engine self-test complete
+
+# 3. Start Flask API server
+python app.py
+# → Server running at http://localhost:5000
+
+# ── FRONTEND SETUP ─────────────────────────────────────────
+# 4. Open index.html in any browser (no build needed!)
+#    Just double-click the file — it works standalone
+
+# 5. To connect to backend: edit index.html line 1
+#    Change: USE_BACKEND = false
+#    To:     USE_BACKEND = true
+
+# ── API ENDPOINTS ──────────────────────────────────────────
+GET  /api/status              → engine health + stats
+GET  /api/events?n=100        → recent events (max 300)
+GET  /api/events?severity=HIGH → filtered events
+GET  /api/intel               → threat intelligence summary
+POST /api/simulate            → {"count": 20} manual batch
+POST /api/reset               → reset engine state
+
+# ── REAL PACKET CAPTURE (Advanced) ────────────────────────
+pip install scapy
+# Requires root/admin — replaces PacketSimulator with live capture
+# sudo python capture.py
+
+# ── RECOMMENDED DATASETS ──────────────────────────────────
+# KDD Cup 99:  http://kdd.ics.uci.edu/databases/kddcup99/
+# CICIDS 2017: https://www.unb.ca/cic/datasets/ids-2017.html
+# NSL-KDD:     https://www.unb.ca/cic/datasets/nsl.html</pre>
+    </div>
+  </div>`;
+}
+
+// ─── MAIN RENDER ────────────────────────────────────────────
+function render(){
+  const stats=computeStats();
+  const {tl}=stats;
+  const tlColor=tl>70?"#FF2D55":tl>40?"#FFB020":"var(--green)";
+
+  const navBtn=(id,lbl)=>`
+    <button class="nav-btn${state.page===id?" active":""}" onclick="state.page='${id}';render()">${lbl}</button>`;
+
+  let pageHTML="";
+  if(state.page==="dashboard") pageHTML=pageDashboard(stats);
+  else if(state.page==="events") pageHTML=pageEvents();
+  else if(state.page==="intel")  pageHTML=pageIntel();
+  else if(state.page==="about")  pageHTML=pageAbout();
+
+  document.getElementById("app").innerHTML=`
+  <div id="app-inner">
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div class="logo">
+        <div class="logo-icon">🛡</div>
+        <div>
+          <div class="logo-text">NetShield <span>AI-IDS</span></div>
+          <div class="logo-sub">Intrusion Detection System · ML v3.2 · Random Forest + Anomaly</div>
+        </div>
+      </div>
+      <div class="nav">
+        ${navBtn("dashboard","Dashboard")}
+        ${navBtn("events","Live Events")}
+        ${navBtn("intel","Threat Intel")}
+        ${navBtn("about","About")}
+        <div class="status-badge${state.running?"":" paused"}">
+          <div class="status-dot"></div>
+          ${state.running?"LIVE":"PAUSED"}
+        </div>
+        <button class="ctrl-btn" onclick="state.running=!state.running;${state.running?"":""}scheduleNext();render()">
+          ${state.running?"PAUSE":"RESUME"}
+        </button>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+      ${renderStatCards(stats)}
+      ${pageHTML}
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+      <span>NetShield AI-IDS · ML Engine: Random Forest + Z-score Anomaly · AI: Claude Sonnet 4.6</span>
+      <span>Events: ${state.events.length}/300 · C:${stats.counts.CRITICAL||0} H:${stats.counts.HIGH||0} M:${stats.counts.MEDIUM||0} L:${stats.counts.LOW||0}</span>
+    </div>
+  </div>`;
+
+  // Attach row click events
+  document.querySelectorAll(".tbl-row").forEach(el=>{
+    el.addEventListener("click",()=>{
+      const id=el.dataset.id;
+      const ev=state.events.find(e=>e.id===id);
+      state.selected=state.selected?.id===id?null:ev;
+      render();
+    });
+  });
+}
+
+render();
+</script>
+</body>
+</html>
